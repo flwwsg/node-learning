@@ -6,7 +6,7 @@ const format = (bytes) => {
 
 const showMem = function () {
     const mem = process.memoryUsage();
-    console.log(`heapTotal: ${format(mem.heapTotal)}, heapUsed: ${format(mem.heapUsed)}, rss: ${mem.rss}`);
+    console.log(`heapTotal: ${format(mem.heapTotal)}, heapUsed: ${format(mem.heapUsed)}, rss: ${format(mem.rss)}`);
 }
 
 // limit use
@@ -22,7 +22,7 @@ const useMem = function () {
 // unlimited buffer
 
 const unLimitedUseMem = function () {
-    const size = 30*1024*1024;
+    const size = 50*1024*1024;
     // buffer.alloc quicker than , buffer.from array
     const arr = Buffer.alloc(size);
     for (let i = 0; i < size; i++) {
@@ -32,7 +32,7 @@ const unLimitedUseMem = function () {
 }
 
 const total = [];
-for(let i = 0; i < 50; i++) {
+for(let i = 0; i < 100; i++) {
     showMem();
     total.push(unLimitedUseMem());
 }
