@@ -1,0 +1,7 @@
+{
+  "name": "node-learning",
+  "version": "1.0.0",
+  "dependencies": {
+    "ws": "^7.3.1"
+  }
+}
