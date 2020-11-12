@@ -1,6 +1,9 @@
 
 const fs = require('fs');
 const url = require('url');
+const querystring = require('querystring');
+const xml2js = require('xml2js');
+const formidable = require('formidable');
 
 // 简单 http 框架
 const http = require('http');
@@ -375,4 +378,121 @@ app = function (req, res) {
         handle(req, res);
     }
 
+}
+
+
+// 数据上传
+
+// node 的 http 模块只对 http 报文的头部进行了解析，然后触发 request 事件。如果请求中还带有内容部分(如 POST 请求，它具有报头和内容)，内容部分需要用户自行接收和解析。
+// 通过报头的 Transfer-Encoding或者 Content-Length 即可判断请求中是否带有内容
+
+const hasBody = function (req) {
+    return 'transfer-encoding' in req.headers || 'content-length' in req.headers;
+}
+
+// 报头结束后，报文内容会通过 data 事件触发
+app = function (req, res) {
+    if (hasBody(req)) {
+        const buffers = [];
+        req.on('data', function (chunk) {
+            buffers.push(chunk);
+        });
+        req.on('end', function () {
+            // 挂载在 req.rawBody 处
+            req.rawBody = Buffer.concat(buffers).toString();
+            handle(req, res);
+        });
+    } else {
+        handle(req, res);
+    }
+}
+
+// 表单数据, 请求头的 content-type 为 application/x-www-form-urlencoded
+handle = function (req, res) {
+    if (req.headers['content-type'] === 'application/x-www-form-urlencoded') {
+        // 后续业务中直接访问 req.body 即可得到表单提交的数据
+        req.body = querystring.parse(req.rawBody);
+    }
+    // TODO something (req, res);
+}
+
+// 其他格式, json, xml
+
+let mime = function (req) {
+    const str = req.headers['content-type'] || '';
+    return str.split(';')[0];
+};
+
+// json
+handle = function (req, res) {
+    if (mime(req) === 'application/json') {
+        try {
+            req.body = JSON.parse(req.rawBody);
+        } catch (e) {
+            res.writeHead(400);
+            res.end('invalid JSON');
+            return;
+        }
+    }
+    // TODO something(req, res);
+}
+
+// xml
+handle = function (req, res) {
+    if(mime(req) === 'application/xml') {
+        xml2js.parseString(req.rawBody, function (err, xml) {
+            if(err) {
+                res.writeHead(400);
+                res.end('invalid xml');
+                return;
+            }
+            req.body = xml;
+            // TODO something(req, res);
+        })
+    }
+};
+
+
+// 附件上传, 特殊表单与普通表单的差异在于该表单中可以含有 file 类型的控件，以及需要指定表单属性 enctype 为 multipart/form-data。
+// 浏览器在遇到 multipart/form-data 表单提交时，构造的请求报文与普通表单完全不同。最为特殊的如下所示
+//
+// Content-Type: multipart/form-data; boundary=AaB03x
+// Content-Length: 18231
+//
+// 表示本次提交的内容是由多部分构成的，其中 boundary=AaB03x 指定的是每部分内容的分界符，AaB03x是随机生成的一段字符串，报文体的内容将通过在它前面添加
+// "--" (不包括引号) 进行分割，报文结束时在它前后都加上 "--" 表示结束。另外，Content-Length 的值必须确保是报文体的长度。
+
+// 接收大小未知的数据量时，需要十分谨慎
+app = function (req, res) {
+    if(hasBody(req)) {
+        const done = function () {
+            handle(req, res);
+        };
+
+        if(mime(req) === 'application/json') {
+            parseJSON(req, done);
+        } else if (mime(req) === 'application/xml') {
+            parseXML(req, done);
+        } else if (mime(req) === 'multipart/form-data'){
+            parseMultipart(req, done);
+        }
+    } else {
+        handle(req, res);
+    }
+}
+
+// formidable 基于流式处理解析报文，将接收到的文件写入系统临时文件夹中
+app = function (req, res) {
+    if(hasBody(req)) {
+        if(mime(req) === 'multipart/form-data') {
+            const form = new formidable.IncomingForm();
+            form.parse(req, function (err, fields, files) {
+                req.body = fields;
+                req.files = files;
+                handle(req, res);
+            })
+        } else {
+// TODO multipart
+        }
+    }
 }
