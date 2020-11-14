@@ -216,6 +216,11 @@ handle = function (req, res) {
     }
 };
 
+const handle404 = function (req, res) {
+    res.writeHead(404);
+    res.end('can not find it');
+}
+
 // 这样在 session 中保存的数据比直接在 cookie 中保存数据要安全得多。这种实现方案依赖 cookie 实现，而且也是目前大多数 web 应用的方案。
 
 
@@ -518,4 +523,207 @@ app = function (req, res) {
     })
 
     handle(req, res);
+}
+
+
+// ## 路由解析
+// MVC
+// 如何根据 URL 做路由映射，有两个分支实现。一种是通过手工关联映射，另一种是自然关联映射。
+// 前者会有一个对应的路由文件来将 URL 映射到对应的控制器，后者没有这样的文件。
+
+// 1、手工映射
+let  routes = [];
+let use = function (path, action) {
+    routes.push([path, action]);
+}
+
+use('/user/setting', exports.settings);
+use('/setting/user', exports.settings);
+
+// 在入口程序判断 URL，然后执行对应的逻辑，这样就完成了基本的路由映射过程
+app = function (req, res) {
+    const pathname = url.parse(req.url).pathname;
+    for(let i = 0; i < routes.length; i++) {
+        const route = routes[i];
+        if (pathname === route[0]) {
+            const action = route[1];
+            action(req, res);
+            return ;
+        }
+    }
+    handle404(req, res);
+}
+
+// 使用正则匹配
+let pathRegexp = function (path) {
+    // 有点复杂的正则
+    path = path
+        .concat(strict ? '' : '/?')
+        .replace(/\/\(/g, '(?:/')
+        .replace(/(\/)?(\.)?:(\w+)(?:(\(.*?\)))?(\?)?(\*)?/g,
+            function (_, slash, format, key, capture, optional, star) {
+            slash = slash || '';
+            return ''
+                + (optional ? '' : slash)
+                + '(?:'
+                + (optional ? slash : '')
+                + (format || '') + (capture || (format && '([^/.]+?)' || '([^/]+?)')) + ')'
+                + (optional || '')
+                + (star ? '(/*)?' : '');
+        })
+        .replace(/([\/.])/g, '\\$1')
+        .replace(/\*/g, '(.*)');
+    return new RegExp('^' + path + '$');
+}
+
+// 改进注册部分
+use = function (path, action) {
+    routes.push([pathRegexp(path), action]);
+};
+
+// 匹配部分
+app = function (req, res) {
+    const pathname = url.parse(req.url).pathname;
+    for (let i = 0; i < routes.length; i++) {
+        const route = routes[i];
+        // 正则匹配
+        if(route[0].exec(pathname)) {
+            const action = route[1];
+            action(req, res);
+            return;
+        }
+    }
+    handle404(req, res);
+}
+
+ // 参数解析
+// 我仌希望在业务中能如下这样调用
+use('/profile/:username', function (req, res) {
+    const username = req.params.username;
+    // TODO others
+});
+
+// 取出键值
+pathRegexp = function (path) {
+    const keys = [];
+    // 有点复杂的正则
+    path = path
+        .concat(strict ? '' : '/?')
+        .replace(/\/\(/g, '(?:/')
+        .replace(/(\/)?(\.)?:(\w+)(?:(\(.*?\)))?(\?)?(\*)?/g,
+            function (_, slash, format, key, capture, optional, star) {
+                keys.push(key);
+                slash = slash || '';
+                return ''
+                    + (optional ? '' : slash)
+                    + '(?:'
+                    + (optional ? slash : '')
+                    + (format || '') + (capture || (format && '([^/.]+?)' || '([^/]+?)')) + ')'
+                    + (optional || '')
+                    + (star ? '(/*)?' : '');
+            })
+        .replace(/([\/.])/g, '\\$1')
+        .replace(/\*/g, '(.*)');
+    return {
+        keys,
+        regexp:  new RegExp('^' + path + '$')
+    };
+}
+
+// 根据抽取的键值和实际的 URL 得到键值匹配到的实际值，设置到 req.params
+app = function (req, res) {
+    const pathname = url.parse(req.url).pathname;
+    for(let i = 0; i < routes.length; i++) {
+        const route = routes[i];
+        const reg = route[0].regexp;
+        const keys = route[0].keys;
+        const matched = reg.exec(pathname);
+        if(matched) {
+            const params = {};
+            for (let i = 0, l = keys.length; i < l; i++) {
+                const value = matched[i+1];
+                if(value) {
+                    params[keys[i]] = value;
+                }
+            }
+            req.params = params;
+            const action = route[1];
+            action(req, res);
+            return;
+        }
+    }
+    handle404(req, res);
+}
+
+// 2、自然映射。尽是路由不如无路由。实际上并非没有路由，而是路由按一种约定的方式自然而然的地实现了路由，无须维护
+
+
+// ## restful
+// 它将 DELETE 、PUT 请求方法引入设计中，参与资源的操作和更改资源的状态。
+// 在 restful 设计中，资源的具体格式由请求报头中的 Accept 字段和服务器端的支持情况来决定。如
+// Accept: application/json, application.xml
+// rest 设计就是，通过 URL 设计资源、请求方法定义资源的操作，通过 Accept 决定资源的表现形式
+
+// 示例
+routes = {'all': []};
+app = {};
+app.use = function (path, action) {
+    routes.all.push([pathRegexp(path), action]);
+};
+
+// 添加 get、put、delete、post 方法在 app 函数上
+// 使用方式 app.get('路由', 业务函数) , app.put('路由', 业务函数);
+['get', 'put', 'delete', 'post'].forEach(function (method) {
+    routes[method] = [];
+    app[method] = function (path, action) {
+        routes[method].push([pathRegexp(path), action]);
+    }
+})
+
+// 匹配函数
+let match = function (req, res, pathname, routes) {
+    for (let i = 0; i < routes.length; i++) {
+        const route = routes[i];
+        // 正则匹配
+        const reg = route[0].regexp;
+        const keys = routes[0].keys;
+        const matched = reg.exec(pathname);
+        if(matched) {
+            // 抽取具体值
+            const params = {};
+            for (let i = 0, l = keys.length; i < l; i++) {
+                const value = matched[i+1];
+                if(value) {
+                    params[keys[i]] = value;
+                }
+            }
+            req.params = params;
+            const action = route[1];
+            action(req, res);
+            return true;
+        }
+    }
+    return false;
+}
+
+// 分发部分
+app = function (req, res) {
+    const pathname = url.parse(req.url).pathname;
+    // 请求方法变为小写
+    const method = req.method.toLowerCase();
+    if(routes.hasOwnProperty(method)) {
+        // 根据请求方法分发
+        if(match(req, res, pathname, routes[method])) {
+        } else {
+            // 没有方法匹配，尝试用 all 来处理
+            if(match(req, res, pathname, routes.all)) {
+            }
+        }
+    } else {
+        // 直接用 all 来处理
+        if(match(pathname, routes.all)) {
+            return ;
+        }
+        handle404(req, res);
+    }
 }
