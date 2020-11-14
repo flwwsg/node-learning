@@ -492,7 +492,30 @@ app = function (req, res) {
                 handle(req, res);
             })
         } else {
-// TODO multipart
+            handle(req, res);
         }
     }
+}
+
+
+// 附件内存限制
+
+let bytes = 1024;
+app = function (req, res) {
+    let received = 0;
+    let len = req.headers['content-length'] ? parseInt(req.header['content-length'], 10) : null;
+    if(len && len > bytes) {
+        // 内容超过长度
+        res.writeHead(413);
+        res.end();
+        return ;
+    }
+    req.on('data', function (chunk) {
+        received += chunk.length;
+        if(received > bytes) {
+            req.destroy();
+        }
+    })
+
+    handle(req, res);
 }
