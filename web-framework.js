@@ -727,3 +727,156 @@ app = function (req, res) {
         handle404(req, res);
     }
 }
+
+// ## middleware 中间件
+// 最早的中间件定义是一种在操作系统上为应用软件提供服务的计算机软件。既不是操作系统的一部分，也不是应用软件的一部分，处于操作系统与应用软件之间，
+// 让应用软件更好、更方便的使用底层服务。如今中间件的含义借指了这种封装底层细节，让上层提供更方便服务的意义，并非限定在操作系统层面。
+// 这里主要指我们封装上文提及的所有 HTTP 请求细节处理的中间件，开发者可以脱离这部分细节，专注在业务上。
+
+//
+// // 示例
+// app.use('路由', querystring, cookie, session, function (req, res) {
+//     // TODO something
+// })
+
+app.use = function (path) {
+    const handle = {
+        // 路径
+        path: pathRegexp(path),
+        // 其它处理单元
+        stack: Array.prototype.slice.call(arguments, 1),
+    };
+    routes.all.push(handle);
+}
+
+match = function (req, res, pathname, routes) {
+    for (let i = 0; i < routes.length; i++) {
+        const route = routes[i];
+        const reg = route.path.regexp;
+        const matched = reg.exec(pathname);
+        if(matched) {
+            // 将中间件数组交给 handle 方法处理
+            handle(req, res, route.stack);
+            return true;
+        }
+    }
+    return false;
+}
+
+handle = function (req, res, stack) {
+    const next = function () {
+        const middleware = stack.shift();
+        if(middleware) {
+            // 传入 next 函数自身，使中间件能够执行结束后递归
+            middleware(req, res, next);
+        }
+    };
+    // start middleware
+    next();
+}
+
+// 改进新的设计
+// 示例
+// app.use(querystring);
+// app.use(cookie);
+// app.use(session);
+// app.get('路由', 业务处理);
+
+app.use = function (path) {
+    let handle;
+    if(typeof path === 'string') {
+        handle = {
+            path: pathRegexp(path),
+            stack: Array.prototype.slice.call(arguments, 1),
+        };
+    } else {
+        handle = {
+            path: pathRegexp('/'),
+            stack: Array.prototype.slice.call(arguments, 0),
+        }
+    }
+    routes.all.push(handle);
+}
+
+// 新的匹配过程
+match = function (req, res, pathname, routes) {
+    let stacks = [];
+    for (let i = 0; i < routes.length; i++) {
+        const route = routes[i];
+        const reg = route.path.regexp;
+        const matched = reg.exec(pathname);
+        if(matched) {
+            stacks = stacks.concat(route.stack);
+        }
+    }
+    return stacks;
+}
+
+// 新的分发过程
+app = function (req, res) {
+    const pathname = url.parse(req.url).pathname;
+    const method = req.method.toLowerCase();
+    let stacks = match(pathname, routes.all);
+    if(routes.hasOwnProperty(method)) {
+        stacks.concat(match(pathname, routes[method]));
+    }
+    if(stacks.length) {
+        handle(req, res, stacks);
+    } else {
+        handle404(req, res);
+    }
+}
+
+// 异常处理
+
+handle = function (req, res, stack) {
+    const next = function (err) {
+        if(err) {
+            return handle500(err, req, res, stack);
+        }
+        const middleware = stack.shift();
+        if(middleware) {
+            try {
+                middleware(req, res, next);
+            } catch (ex) {
+                next(err);
+            }
+        }
+    }
+
+    next();
+}
+
+// 中间件异步产生的异常需要自己传递出来
+let session = function (req, res, next) {
+    const id = req.cookies.sessionid;
+    store.get(id, function (err, session) {
+        if(err) {
+            return next(err);
+        }
+        req.session = session;
+        next();
+    })
+}
+
+// 区分普通中间件和异常处理中间件， handle500 将对中间件按参数进行选择，然后递归执行
+handle500 = function (err, req, res, stack) {
+    stack = stack.filter(function (middleware) {
+        return middleware.length === 4;
+    })
+    const next = function () {
+        const middleware = stack.shift();
+        if(middleware) {
+            middleware(err, req, res, next);
+        }
+    };
+    next();
+}
+
+// ## 中间件与性能
+// 1、编写高效的中间件
+// a、使用高效的方法
+// b、缓存需要重复计算的结果
+// c、避免不必要的计算
+
+// 2、合理使用路由
