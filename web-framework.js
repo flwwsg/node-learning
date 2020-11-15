@@ -25,8 +25,10 @@ let app = function (req, res) {
             break;
         case 'DELETE':
             remove(req, res);
+            break;
         case 'PUT':
             create(req, res);
+            break;
         case 'GET':
         default:
             get(req, res);
