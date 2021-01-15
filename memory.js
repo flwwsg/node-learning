@@ -43,8 +43,8 @@ for(let i = 0; i < 100; i++) {
     showMem();
     total.push(unLimitedUseMem());
 }
-setTimeout(writeSnapshot, 1000);
-setTimeout(writeSnapshot, 200);
+// setTimeout(writeSnapshot, 1000);
+// setTimeout(writeSnapshot, 200);
 showMem();
-
+setInterval(() => console.log(1), 10000);
 // reference https://www.npmjs.com/package/heapdump
