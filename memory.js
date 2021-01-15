@@ -1,4 +1,11 @@
 // test memory limit,  64 位的机器大约 1.4GB，32 位机器大约为 0.7GB
+'use strict';
+const hd = require('heapdump');
+const path = require('path');
+
+function writeSnapshot() {
+    hd.writeSnapshot(path.join(path.join(__dirname, 'tmp'), Date.now().toString()+'.heapsnapshot'));
+}
 
 const format = (bytes) => {
     return (bytes / 1024 / 1024).toFixed(2) + "MB";
@@ -36,4 +43,8 @@ for(let i = 0; i < 100; i++) {
     showMem();
     total.push(unLimitedUseMem());
 }
+setTimeout(writeSnapshot, 1000);
+setTimeout(writeSnapshot, 200);
 showMem();
+
+// reference https://www.npmjs.com/package/heapdump
