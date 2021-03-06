@@ -43,6 +43,7 @@ for(let i = 0; i < 100; i++) {
     showMem();
     total.push(unLimitedUseMem());
 }
+// kill -USR2 <pid> 使用
 // setTimeout(writeSnapshot, 1000);
 // setTimeout(writeSnapshot, 200);
 showMem();
