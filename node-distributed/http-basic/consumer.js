@@ -6,14 +6,14 @@ const PORT = process.env.PORT || 3000;
 const TARGET = process.env.TARGET || 'localhost:4000';
 
 server.get('/', async () => {
-    const req = await fetch(`http://${TARGET}/recipes/42`);
-    const producerData = await req.json();
-    return {
-        consumerPid: process.pid,
-        producerData,
-    }
+  const req = await fetch(`http://${TARGET}/recipes/42`);
+  const producerData = await req.json();
+  return {
+    consumerPid: process.pid,
+    producerData,
+  }
 });
 
 server.listen(PORT, HOST, () => {
-    console.log(`consumer running at http://${HOST}:${PORT}/`);
+  console.log(`consumer running at http://${HOST}:${PORT}/`);
 })

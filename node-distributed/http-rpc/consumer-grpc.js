@@ -12,25 +12,25 @@ const PORT = process.env.PORT || 3000;
 const TARGET = process.env.TARGET || 'localhost:4000';
 
 const client = new recipe.RecipeService(
-    TARGET,
-    grpc.credentials.createInsecure(),
+  TARGET,
+  grpc.credentials.createInsecure(),
 );
 
 const getMetaData = util.promisify(client.getMetaData.bind(client));
 const getRecipe = util.promisify(client.getRecipe.bind(client));
 
 server.get('/', async () => {
-    const [ meta, recipe ] = await Promise.all([
-        getMetaData({}),
-        getRecipe({ id: 42 }),
-    ]);
-    return {
-        consumerPid: process.pid,
-        producerData: meta,
-        recipe
-    }
+  const [ meta, recipe ] = await Promise.all([
+    getMetaData({}),
+    getRecipe({ id: 42 }),
+  ]);
+  return {
+    consumerPid: process.pid,
+    producerData: meta,
+    recipe
+  }
 });
 
 server.listen(PORT, HOST, () => {
-    console.log(`consumer running at http://${HOST}:${PORT}/`);
+  console.log(`consumer running at http://${HOST}:${PORT}/`);
 })

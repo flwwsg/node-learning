@@ -17,25 +17,25 @@ const complexQuery = `query demo ($id: ID) {
 }`
 
 server.get('/', async () => {
-    const req = await fetch(`http://${TARGET}/graphql`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            query: complexQuery,
-            variables: {
-                id: 42
-            },
-        }),
-    });
-    const producerData = await req.json();
-    return {
-        consumerPid: process.pid,
-        producerData,
-    }
+  const req = await fetch(`http://${TARGET}/graphql`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      query: complexQuery,
+      variables: {
+        id: 42
+      },
+    }),
+  });
+  const producerData = await req.json();
+  return {
+    consumerPid: process.pid,
+    producerData,
+  }
 });
 
 server.listen(PORT, HOST, () => {
-    console.log(`consumer running at http://${HOST}:${PORT}/`);
+  console.log(`consumer running at http://${HOST}:${PORT}/`);
 })
